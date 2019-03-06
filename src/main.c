@@ -14,24 +14,21 @@ unsigned int seeds[THREAD_NUM] = {0};
 int ready[THREAD_NUM] = {0};
 
 pthread_mutex_t mutex;
+pthread_cond_t cond;
 
 void *calc(void *args) {
     long aux = (long) args;
 
     while (1) {
-        pthread_mutex_lock(&mutex);
-        int r = ready[aux];
-        pthread_mutex_unlock(&mutex);
-        if (!r) {
-            for (int i = POINTS_LEN/THREAD_NUM * aux; i < ((aux == THREAD_NUM-1) ? POINTS_LEN : (POINTS_LEN/THREAD_NUM * (aux+1))); i++) {
-                points[i].x += (float)rand_r(&seeds[aux])/(float)(RAND_MAX) > 0.5 ? rand_r(&seeds[aux])/((float)RAND_MAX/5) : -rand_r(&seeds[aux])/((float)RAND_MAX/5);
-                points[i].y += (float)rand_r(&seeds[aux])/(float)(RAND_MAX) > 0.5 ? rand_r(&seeds[aux])/((float)RAND_MAX/5) : -rand_r(&seeds[aux])/((float)RAND_MAX/5);
-            }
-
-            pthread_mutex_lock(&mutex);
-            ready[aux] = 1;
-            pthread_mutex_unlock(&mutex);
+        for (int i = POINTS_LEN/THREAD_NUM * aux; i < ((aux == THREAD_NUM-1) ? POINTS_LEN : (POINTS_LEN/THREAD_NUM * (aux+1))); i++) {
+            points[i].x += (float)rand_r(&seeds[aux])/(float)(RAND_MAX) > 0.5 ? rand_r(&seeds[aux])/((float)RAND_MAX/5) : -rand_r(&seeds[aux])/((float)RAND_MAX/5);
+            points[i].y += (float)rand_r(&seeds[aux])/(float)(RAND_MAX) > 0.5 ? rand_r(&seeds[aux])/((float)RAND_MAX/5) : -rand_r(&seeds[aux])/((float)RAND_MAX/5);
         }
+
+        pthread_mutex_lock(&mutex);
+        ready[aux] = 1;
+        pthread_cond_wait(&cond, &mutex);
+        pthread_mutex_unlock(&mutex);
     }
 }
 
@@ -44,6 +41,7 @@ int main(void){
     }
 
     pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&cond, NULL);
 
     for(long i = 0; i < THREAD_NUM; i++){
         pthread_create(&threadIds[i], NULL, calc, (void *) i);
@@ -61,11 +59,11 @@ int main(void){
         pthread_mutex_unlock(&mutex);
 
         if (allDone) {
-            pthread_mutex_lock(&mutex);
             for(int i = 0; i < THREAD_NUM; i++){
                 ready[i] = 0;
             }
-            pthread_mutex_unlock(&mutex);
+
+            pthread_cond_broadcast(&cond);
 
             lastTime = curTime;
             curTime = SDL_GetPerformanceCounter();
