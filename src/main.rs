@@ -8,7 +8,7 @@ struct Vec2 {
 }
 
 const POINTS_LEN: usize = 100_000;
-const THREAD_NUM: usize = 4;
+const THREAD_NUM: usize = 1;
 
 fn main() {
     let mut points: Vec<Vec2> = Vec::new();
