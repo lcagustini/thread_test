@@ -1,28 +1,40 @@
 #include <SDL2/SDL.h>
 #include <pthread.h>
+#include <stdint.h>
+#include <limits.h>
 
-#define POINTS_LEN 100000
-#define THREAD_NUM 1
+#define POINTS_LEN 10000000
+#define THREAD_NUM 4
 
 typedef struct {
-    float x;
-    float y;
+    uint64_t x;
+    uint64_t y;
 } vec2;
 
 vec2 points[POINTS_LEN] = {0};
-unsigned int seeds[THREAD_NUM] = {0};
+uint64_t seeds[THREAD_NUM] = {0};
 int ready[THREAD_NUM] = {0};
 
 pthread_mutex_t mutex;
 pthread_cond_t cond;
 
+uint64_t xorshift64(uint64_t* state) {
+    uint64_t x = *state;
+    x^= x << 13;
+    x^= x >> 7;
+    x^= x << 17;
+    *state = x;
+    return x;
+}
+
 void *calc(void *args) {
     long aux = (long) args;
 
     while (1) {
+        uint64_t s = 111*(aux+90);
         for (int i = POINTS_LEN/THREAD_NUM * aux; i < ((aux == THREAD_NUM-1) ? POINTS_LEN : (POINTS_LEN/THREAD_NUM * (aux+1))); i++) {
-            points[i].x += (float)rand_r(&seeds[aux])/(float)(RAND_MAX) > 0.5 ? rand_r(&seeds[aux])/((float)RAND_MAX/5) : -rand_r(&seeds[aux])/((float)RAND_MAX/5);
-            points[i].y += (float)rand_r(&seeds[aux])/(float)(RAND_MAX) > 0.5 ? rand_r(&seeds[aux])/((float)RAND_MAX/5) : -rand_r(&seeds[aux])/((float)RAND_MAX/5);
+            points[i].x = xorshift64(&s);
+            points[i].y = xorshift64(&s);
         }
 
         pthread_mutex_lock(&mutex);
@@ -36,7 +48,7 @@ int main(void){
     pthread_t threadIds[THREAD_NUM];
 
     for (int i = 0; i < THREAD_NUM; i++) {
-        seeds[i] = time(NULL);
+        seeds[i] = i;
         ready[i] = 0;
     }
 
